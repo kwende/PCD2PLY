@@ -9,42 +9,76 @@ namespace PCD2PLY
 {
     class Program
     {
+        enum InputFileType
+        {
+            UNKNOWN,
+            PCD,
+            OBJ
+        }
+
         static void Main(string[] args)
         {
-            string plyFilePath = args[0];
-            string pcdFilePath = args[1];
+            string inputFile = args[0];
 
-            if (File.Exists(pcdFilePath))
+            if (File.Exists(inputFile))
             {
-                string[] allPCDFileLines = File.ReadAllLines(pcdFilePath);
+                string outputFilePath = Path.Combine(Path.GetDirectoryName(inputFile), Path.GetFileNameWithoutExtension(inputFile) + ".ply"); 
+
+                InputFileType inputType = InputFileType.UNKNOWN;
+
+                if (inputFile.EndsWith(".pcd"))
+                {
+                    inputType = InputFileType.PCD;
+                }
+                else if (inputFile.EndsWith(".obj"))
+                {
+                    inputType = InputFileType.OBJ;
+                }
+
+                string[] allFileLines = File.ReadAllLines(inputFile);
 
                 List<string> header = new List<string>();
 
-                // read PCD header. 
-                int lineIndex = 0;
-                for (; lineIndex < allPCDFileLines.Length; lineIndex++)
-                {
-                    string line = allPCDFileLines[lineIndex];
-                    if (Char.IsDigit(line[0]) || line[0] == '-')
-                    {
-                        break;
-                    }
-                    header.Add(line);
-                }
-
-
-
                 List<string> linesToWrite = new List<string>();
-                for (int c = lineIndex; c < allPCDFileLines.Length; c++)
+
+                if (inputType == InputFileType.PCD)
                 {
-                    double[] pcdLineParts = allPCDFileLines[c].Split(' ').Select(n => double.Parse(n)).ToArray();
-                    if (pcdLineParts.Any(n => Math.Abs(n) > 6))
+                    // read PCD header. 
+                    int lineIndex = 0;
+                    for (; lineIndex < allFileLines.Length; lineIndex++)
                     {
-                        continue;
+                        string line = allFileLines[lineIndex];
+                        if (Char.IsDigit(line[0]) || line[0] == '-')
+                        {
+                            break;
+                        }
+                        header.Add(line);
                     }
-                    else
+
+
+                    for (int c = lineIndex; c < allFileLines.Length; c++)
                     {
-                        linesToWrite.Add($"{pcdLineParts[0]} {pcdLineParts[1]} {pcdLineParts[2]} 255 255 255");
+                        double[] pcdLineParts = allFileLines[c].Split(' ').Select(n => double.Parse(n)).ToArray();
+                        if (pcdLineParts.Any(n => Math.Abs(n) > 6))
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            linesToWrite.Add($"{pcdLineParts[0]} {pcdLineParts[1]} {pcdLineParts[2]} 255 255 255");
+                        }
+                    }
+                }
+                else if (inputType == InputFileType.OBJ)
+                {
+                    foreach(string line in allFileLines)
+                    {
+                        if(line.StartsWith("v "))
+                        {
+                            string[] bits = line.Split(' ');
+
+                            linesToWrite.Add($"{bits[1]} {bits[2]} {bits[3]} 255 255 255"); 
+                        }
                     }
                 }
 
@@ -62,7 +96,7 @@ namespace PCD2PLY
                     end_header";
                 string plyHeader = PLYHEADERTEMPLATE.Replace("REPLACEME", linesToWrite.Count.ToString());
 
-                using (StreamWriter sw = File.CreateText(plyFilePath))
+                using (StreamWriter sw = File.CreateText(outputFilePath))
                 {
                     sw.WriteLine(plyHeader);
 
